@@ -26,6 +26,7 @@ model Workspace {
   apiKeys          ApiKey[]
   webhooks         Webhook[]
   jobs             Job[]
+  fileRefs         FileRef[]
 
   // agent_order_intake relations
   orders    Order[]
@@ -243,6 +244,7 @@ model Job {
   workspaceId String
   agentId     String?
   type        String
+  queueName   String    @default("integration")
   payload     Json
   status      JobStatus @default(PENDING)
   attempts    Int       @default(0)
@@ -253,6 +255,24 @@ model Job {
   workspace Workspace @relation(fields: [workspaceId], references: [id])
 
   @@index([workspaceId, status])
+  @@index([queueName, status])
+  @@schema("platform")
+}
+
+model FileRef {
+  id          String   @id @default(cuid())
+  workspaceId String
+  bucket      String
+  key         String   @unique
+  filename    String
+  mimeType    String
+  sizeBytes   Int
+  version     Int      @default(1)
+  createdAt   DateTime @default(now())
+
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  @@index([workspaceId])
   @@schema("platform")
 }
 

@@ -35,6 +35,7 @@ export async function dispatchIntegrations(
       workspaceId,
       agentId,
       type: "integration_dispatch",
+      queueName: "integration",
       payload: { integrationId: integration.id, orderPayload },
     });
 

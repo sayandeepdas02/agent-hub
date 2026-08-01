@@ -22,6 +22,7 @@ export async function runAutomationRules(
         await enqueueJob({
           workspaceId,
           type: "automation_http_post",
+          queueName: "automation",
           payload: {
             ruleId: rule.id,
             ruleName: rule.name,

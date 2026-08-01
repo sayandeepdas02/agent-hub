@@ -1,4 +1,4 @@
-import { prisma } from "./prisma";
+import { notificationQueue } from "./queue";
 
 export async function notifySlackReviewNeeded(
   orderId: string,
@@ -12,26 +12,9 @@ export async function notifySlackReviewNeeded(
   const shortId = orderId.slice(-8);
   const text = `*Order needs review:* \`${shortId}\`\n${reasons.map((r) => `• ${r}`).join("\n")}`;
 
-  try {
-    const res = await fetch("https://slack.com/api/chat.postMessage", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${token}`,
-      },
-      body: JSON.stringify({ channel, text }),
-    });
-    const data = (await res.json()) as { ok: boolean };
-
-    await prisma.notification.create({
-      data: {
-        workspaceId,
-        channel: `slack:${channel}`,
-        payload: { orderId, text, slackOk: data.ok },
-        sentAt: data.ok ? new Date() : null,
-      },
-    });
-  } catch {
-    // Non-fatal — notification failure must never block the order pipeline
-  }
+  await notificationQueue.add("slack_review_needed", {
+    workspaceId,
+    channel: "slack",
+    payload: { orderId, text },
+  });
 }
