@@ -1,26 +1,50 @@
 @import "tailwindcss";
 
-:root {
-  --background: #ffffff;
-  --foreground: #171717;
-}
-
-@theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
-}
-
-@media (prefers-color-scheme: dark) {
+@layer base {
   :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
+    --color-ink: #1c1f26;
+    --color-paper: #f2f1ec;
+    --color-primary: #2d4fde;
+    --color-primary-hover: #2440c2;
+    --color-amber: #d98e2e;
+    --color-green: #3e7a52;
+    --color-rust: #b5433a;
+
+    --color-surface: #ffffff;
+    --color-surface-raised: #f8f7f3;
+    --color-border: #e2e0d8;
+    --color-border-strong: #c8c5bb;
+
+    --color-text-primary: var(--color-ink);
+    --color-text-secondary: #5a5d66;
+    --color-text-tertiary: #8a8d96;
+    --color-text-inverse: #ffffff;
+
+    --color-status-pending-bg: #f0f4ff;
+    --color-status-pending-text: var(--color-primary);
+    --color-status-review-bg: #fef6e9;
+    --color-status-review-text: var(--color-amber);
+    --color-status-completed-bg: #edf6f1;
+    --color-status-completed-text: var(--color-green);
+    --color-status-failed-bg: #fdf0ef;
+    --color-status-failed-text: var(--color-rust);
+
+    --radius: 6px;
   }
 }
 
-body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+@layer base {
+  * { box-sizing: border-box; }
+
+  html, body {
+    background-color: var(--color-paper);
+    color: var(--color-text-primary);
+    font-family: "IBM Plex Sans", system-ui, sans-serif;
+    -webkit-font-smoothing: antialiased;
+    height: 100%;
+  }
+
+  h1, h2, h3 {
+    font-family: "Fraunces", Georgia, serif;
+  }
 }
