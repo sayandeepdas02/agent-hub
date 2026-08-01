@@ -1,18 +1,17 @@
 import { prisma } from "@/lib/prisma";
+import { requireAuth } from "@/lib/auth-utils";
 import { TopBar } from "@/components/platform/shell/TopBar";
 import { formatDateTime } from "@/lib/utils";
 
 export default async function AuditLogPage() {
-  const workspace = await prisma.workspace.findFirst();
+  const { workspaceId } = await requireAuth();
 
-  const logs = workspace
-    ? await prisma.auditLog.findMany({
-        where: { workspaceId: workspace.id },
-        orderBy: { timestamp: "desc" },
-        take: 200,
-        include: { agent: true, user: true },
-      })
-    : [];
+  const logs = await prisma.auditLog.findMany({
+    where: { workspaceId },
+    orderBy: { timestamp: "desc" },
+    take: 200,
+    include: { agent: true, user: true },
+  });
 
   return (
     <>

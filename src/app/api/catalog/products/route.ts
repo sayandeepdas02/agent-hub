@@ -1,30 +1,27 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { requireAuth } from "@/lib/auth-utils";
 
 export async function GET() {
-  const workspace = await prisma.workspace.findFirst();
-  if (!workspace) return NextResponse.json([]);
-
+  const { workspaceId } = await requireAuth();
   const products = await prisma.product.findMany({
-    where: { workspaceId: workspace.id },
+    where: { workspaceId },
     orderBy: [{ sku: "asc" }],
   });
   return NextResponse.json(products);
 }
 
 export async function POST(req: NextRequest) {
+  const { workspaceId } = await requireAuth();
   const body = await req.json() as { sku: string; name: string };
 
   if (!body.sku?.trim() || !body.name?.trim()) {
     return NextResponse.json({ error: "sku and name are required" }, { status: 400 });
   }
 
-  const workspace = await prisma.workspace.findFirst();
-  if (!workspace) return NextResponse.json({ error: "No workspace" }, { status: 404 });
-
   const product = await prisma.product.create({
     data: {
-      workspaceId: workspace.id,
+      workspaceId,
       sku: body.sku.trim().toUpperCase(),
       name: body.name.trim(),
     },

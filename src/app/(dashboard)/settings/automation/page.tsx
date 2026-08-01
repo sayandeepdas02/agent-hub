@@ -1,16 +1,14 @@
 import { prisma } from "@/lib/prisma";
+import { requireAuth } from "@/lib/auth-utils";
 import { TopBar } from "@/components/platform/shell/TopBar";
 import { AutomationRulesPanel } from "@/components/platform/AutomationRulesPanel";
 
 export default async function AutomationPage() {
-  const workspace = await prisma.workspace.findFirst();
-
-  const rules = workspace
-    ? await prisma.automationRule.findMany({
-        where: { workspaceId: workspace.id },
-        orderBy: { createdAt: "asc" },
-      })
-    : [];
+  const { workspaceId } = await requireAuth();
+  const rules = await prisma.automationRule.findMany({
+    where: { workspaceId },
+    orderBy: { createdAt: "asc" },
+  });
 
   return (
     <>
@@ -23,7 +21,6 @@ export default async function AutomationPage() {
               Rules fire on order events and POST to a webhook URL. Executes as a background job.
             </p>
           </div>
-
           <AutomationRulesPanel initialRules={rules} />
         </div>
       </main>

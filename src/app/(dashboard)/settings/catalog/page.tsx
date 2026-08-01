@@ -1,16 +1,14 @@
 import { prisma } from "@/lib/prisma";
+import { requireAuth } from "@/lib/auth-utils";
 import { TopBar } from "@/components/platform/shell/TopBar";
 import { CatalogPanel } from "@/components/platform/CatalogPanel";
 
 export default async function CatalogPage() {
-  const workspace = await prisma.workspace.findFirst();
-
-  const [customers, products] = workspace
-    ? await Promise.all([
-        prisma.customer.findMany({ where: { workspaceId: workspace.id }, orderBy: { name: "asc" } }),
-        prisma.product.findMany({ where: { workspaceId: workspace.id }, orderBy: { sku: "asc" } }),
-      ])
-    : [[], []];
+  const { workspaceId } = await requireAuth();
+  const [customers, products] = await Promise.all([
+    prisma.customer.findMany({ where: { workspaceId }, orderBy: { name: "asc" } }),
+    prisma.product.findMany({ where: { workspaceId }, orderBy: { sku: "asc" } }),
+  ]);
 
   return (
     <>

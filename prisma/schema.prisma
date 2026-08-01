@@ -10,12 +10,15 @@ datasource db {
 // ─── PLATFORM SCHEMA ─────────────────────────────────────────────────────────
 
 model Workspace {
-  id         String   @id @default(cuid())
-  name       String
-  slug       String   @unique
-  createdAt  DateTime @default(now())
+  id        String   @id @default(cuid())
+  name      String
+  slug      String   @unique
+  plan      String   @default("free")
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
-  users            User[]
+  memberships      WorkspaceMembership[]
+  invites          Invite[]
   agentEnrollments AgentEnrollment[]
   integrations     Integration[]
   auditLogs        AuditLog[]
@@ -33,24 +36,91 @@ model Workspace {
 }
 
 model User {
-  id          String   @id @default(cuid())
-  workspaceId String
-  email       String
-  name        String?
-  role        UserRole @default(OPERATOR)
-  createdAt   DateTime @default(now())
+  id            String    @id @default(cuid())
+  email         String    @unique
+  name          String?
+  image         String?
+  emailVerified DateTime?
+  passwordHash  String?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
 
-  workspace  Workspace  @relation(fields: [workspaceId], references: [id])
-  auditLogs  AuditLog[]
+  accounts    Account[]
+  memberships WorkspaceMembership[]
+  auditLogs   AuditLog[]
 
-  @@unique([workspaceId, email])
   @@schema("platform")
 }
 
-enum UserRole {
-  ADMIN
-  OPERATOR
+model WorkspaceMembership {
+  id          String     @id @default(cuid())
+  workspaceId String
+  userId      String
+  role        MemberRole @default(OPERATOR)
+  createdAt   DateTime   @default(now())
 
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([workspaceId, userId])
+  @@index([userId])
+  @@schema("platform")
+}
+
+enum MemberRole {
+  ADMIN
+  MANAGER
+  REVIEWER
+  OPERATOR
+  VIEWER
+
+  @@schema("platform")
+}
+
+model Account {
+  id                String  @id @default(cuid())
+  userId            String
+  type              String
+  provider          String
+  providerAccountId String
+  refresh_token     String? @db.Text
+  access_token      String? @db.Text
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String? @db.Text
+  session_state     String?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+  @@schema("platform")
+}
+
+model VerificationToken {
+  identifier String
+  token      String   @unique
+  expires    DateTime
+
+  @@unique([identifier, token])
+  @@schema("platform")
+}
+
+model Invite {
+  id          String     @id @default(cuid())
+  workspaceId String
+  email       String
+  role        MemberRole @default(OPERATOR)
+  token       String     @unique @default(cuid())
+  invitedById String?
+  expiresAt   DateTime
+  acceptedAt  DateTime?
+  createdAt   DateTime   @default(now())
+
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  @@index([workspaceId])
+  @@index([token])
   @@schema("platform")
 }
 
@@ -130,12 +200,12 @@ model AuditLog {
 }
 
 model Notification {
-  id          String   @id @default(cuid())
+  id          String    @id @default(cuid())
   workspaceId String
   channel     String
   payload     Json
   sentAt      DateTime?
-  createdAt   DateTime @default(now())
+  createdAt   DateTime  @default(now())
 
   workspace Workspace @relation(fields: [workspaceId], references: [id])
 
@@ -198,14 +268,14 @@ enum JobStatus {
 // ─── AGENT: ORDER INTAKE SCHEMA ───────────────────────────────────────────────
 
 model Order {
-  id          String      @id @default(cuid())
-  workspaceId String
-  status      OrderStatus @default(PENDING)
-  source      OrderSource
-  customerId  String?
-  createdAt   DateTime    @default(now())
-  updatedAt   DateTime    @updatedAt
+  id            String      @id @default(cuid())
+  workspaceId   String
+  status        OrderStatus @default(PENDING)
+  source        OrderSource
+  customerId    String?
   duplicateOfId String?
+  createdAt     DateTime    @default(now())
+  updatedAt     DateTime    @updatedAt
 
   workspace   Workspace    @relation(fields: [workspaceId], references: [id])
   customer    Customer?    @relation(fields: [customerId], references: [id])
@@ -252,13 +322,13 @@ model RawMessage {
 }
 
 model ParsedData {
-  id               String   @id @default(cuid())
-  orderId          String   @unique
-  data             Json
-  orderConfidence  Float
-  fieldConfidence  Json
-  needsReview      Boolean
-  createdAt        DateTime @default(now())
+  id              String   @id @default(cuid())
+  orderId         String   @unique
+  data            Json
+  orderConfidence Float
+  fieldConfidence Json
+  needsReview     Boolean
+  createdAt       DateTime @default(now())
 
   order Order @relation(fields: [orderId], references: [id], onDelete: Cascade)
 

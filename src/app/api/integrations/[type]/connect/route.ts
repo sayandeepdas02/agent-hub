@@ -1,13 +1,21 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { requireAuth } from "@/lib/auth-utils";
 import type { IntegrationType } from "@prisma/client";
 
-const VALID_TYPES = new Set<string>(["MONDAY", "PRINTAVO", "SHOPWORKS", "QUICKBOOKS", "CUSTOM_REST"]);
+const VALID_TYPES = new Set<string>([
+  "MONDAY",
+  "PRINTAVO",
+  "SHOPWORKS",
+  "QUICKBOOKS",
+  "CUSTOM_REST",
+]);
 
 export async function POST(
   req: NextRequest,
   { params }: { params: Promise<{ type: string }> }
 ) {
+  const { workspaceId } = await requireAuth();
   const { type } = await params;
   const integrationType = type.toUpperCase();
 
@@ -22,11 +30,8 @@ export async function POST(
     return NextResponse.json({ error: "url is required for Custom REST" }, { status: 400 });
   }
 
-  const workspace = await prisma.workspace.findFirst();
-  if (!workspace) return NextResponse.json({ error: "No workspace" }, { status: 404 });
-
   const existing = await prisma.integration.findFirst({
-    where: { workspaceId: workspace.id, type: integrationType as IntegrationType },
+    where: { workspaceId, type: integrationType as IntegrationType },
   });
 
   if (existing) {
@@ -36,12 +41,7 @@ export async function POST(
     });
   } else {
     await prisma.integration.create({
-      data: {
-        workspaceId: workspace.id,
-        type: integrationType as IntegrationType,
-        status: "CONNECTED",
-        credentials,
-      },
+      data: { workspaceId, type: integrationType as IntegrationType, status: "CONNECTED", credentials },
     });
   }
 

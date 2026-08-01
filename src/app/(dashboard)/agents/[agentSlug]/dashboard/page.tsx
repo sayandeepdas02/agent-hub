@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/prisma";
+import { requireAuth } from "@/lib/auth-utils";
 import { TopBar } from "@/components/platform/shell/TopBar";
 import { notFound } from "next/navigation";
 import { formatRelative } from "@/lib/utils";
@@ -13,11 +14,9 @@ export default async function AgentDashboardPage({
 }) {
   const { agentSlug } = await params;
 
+  const { workspaceId } = await requireAuth();
   const agent = await prisma.agent.findUnique({ where: { slug: agentSlug } });
   if (!agent) notFound();
-
-  const workspace = await prisma.workspace.findFirst();
-  if (!workspace) notFound();
 
   const today = new Date();
   today.setHours(0, 0, 0, 0);
@@ -25,19 +24,19 @@ export default async function AgentDashboardPage({
   const [ordersToday, pendingReview, completed, failed, recent] =
     await Promise.all([
       prisma.order.count({
-        where: { workspaceId: workspace.id, createdAt: { gte: today } },
+        where: { workspaceId, createdAt: { gte: today } },
       }),
       prisma.order.count({
-        where: { workspaceId: workspace.id, status: "REVIEW_NEEDED" },
+        where: { workspaceId, status: "REVIEW_NEEDED" },
       }),
       prisma.order.count({
-        where: { workspaceId: workspace.id, status: "COMPLETED" },
+        where: { workspaceId, status: "COMPLETED" },
       }),
       prisma.order.count({
-        where: { workspaceId: workspace.id, status: "FAILED" },
+        where: { workspaceId, status: "FAILED" },
       }),
       prisma.auditLog.findMany({
-        where: { workspaceId: workspace.id, agentId: agent.id },
+        where: { workspaceId, agentId: agent.id },
         orderBy: { timestamp: "desc" },
         take: 20,
       }),

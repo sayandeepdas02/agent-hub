@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/prisma";
+import { requireAuth } from "@/lib/auth-utils";
 import { TopBar } from "@/components/platform/shell/TopBar";
 import { IntegrationCard } from "@/components/platform/IntegrationCard";
 
@@ -11,12 +12,8 @@ const INTEGRATION_TYPES = [
 ] as const;
 
 export default async function IntegrationsPage() {
-  const workspace = await prisma.workspace.findFirst();
-
-  const integrations = workspace
-    ? await prisma.integration.findMany({ where: { workspaceId: workspace.id } })
-    : [];
-
+  const { workspaceId } = await requireAuth();
+  const integrations = await prisma.integration.findMany({ where: { workspaceId } });
   const byType = Object.fromEntries(integrations.map((i) => [i.type, i]));
 
   return (

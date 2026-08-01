@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/prisma";
+import { requireAuth } from "@/lib/auth-utils";
 import { TopBar } from "@/components/platform/shell/TopBar";
 import { StatusPill } from "@/components/platform/StatusPill";
 import { SourceIcon } from "@/components/platform/SourceIcon";
@@ -17,15 +18,13 @@ export default async function OrdersPage({
   const { agentSlug } = await params;
   const { status, source } = await searchParams;
 
+  const { workspaceId } = await requireAuth();
   const agent = await prisma.agent.findUnique({ where: { slug: agentSlug } });
   if (!agent) notFound();
 
-  const workspace = await prisma.workspace.findFirst();
-  if (!workspace) notFound();
-
   const orders = await prisma.order.findMany({
     where: {
-      workspaceId: workspace.id,
+      workspaceId,
       ...(status ? { status: status as OrderStatus } : {}),
       ...(source ? { source: source as OrderSource } : {}),
     },
