@@ -1,0 +1,425 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  schemas  = ["platform", "agent_order_intake"]
+}
+
+// ─── PLATFORM SCHEMA ─────────────────────────────────────────────────────────
+
+model Workspace {
+  id        String   @id @default(cuid())
+  name      String
+  slug      String   @unique
+  plan      String   @default("free")
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  memberships      WorkspaceMembership[]
+  invites          Invite[]
+  agentEnrollments AgentEnrollment[]
+  integrations     Integration[]
+  auditLogs        AuditLog[]
+  notifications    Notification[]
+  apiKeys          ApiKey[]
+  webhooks         Webhook[]
+  jobs             Job[]
+  fileRefs         FileRef[]
+
+  // agent_order_intake relations
+  orders    Order[]
+  customers Customer[]
+  products  Product[]
+
+  @@schema("platform")
+}
+
+model User {
+  id            String    @id @default(cuid())
+  email         String    @unique
+  name          String?
+  image         String?
+  emailVerified DateTime?
+  passwordHash  String?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  accounts    Account[]
+  memberships WorkspaceMembership[]
+  auditLogs   AuditLog[]
+
+  @@schema("platform")
+}
+
+model WorkspaceMembership {
+  id          String     @id @default(cuid())
+  workspaceId String
+  userId      String
+  role        MemberRole @default(OPERATOR)
+  createdAt   DateTime   @default(now())
+
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([workspaceId, userId])
+  @@index([userId])
+  @@schema("platform")
+}
+
+enum MemberRole {
+  ADMIN
+  MANAGER
+  REVIEWER
+  OPERATOR
+  VIEWER
+
+  @@schema("platform")
+}
+
+model Account {
+  id                String  @id @default(cuid())
+  userId            String
+  type              String
+  provider          String
+  providerAccountId String
+  refresh_token     String? @db.Text
+  access_token      String? @db.Text
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String? @db.Text
+  session_state     String?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+  @@schema("platform")
+}
+
+model VerificationToken {
+  identifier String
+  token      String   @unique
+  expires    DateTime
+
+  @@unique([identifier, token])
+  @@schema("platform")
+}
+
+model Invite {
+  id          String     @id @default(cuid())
+  workspaceId String
+  email       String
+  role        MemberRole @default(OPERATOR)
+  token       String     @unique @default(cuid())
+  invitedById String?
+  expiresAt   DateTime
+  acceptedAt  DateTime?
+  createdAt   DateTime   @default(now())
+
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  @@index([workspaceId])
+  @@index([token])
+  @@schema("platform")
+}
+
+model Agent {
+  id   String @id
+  name String
+  slug String @unique
+
+  enrollments AgentEnrollment[]
+  auditLogs   AuditLog[]
+
+  @@schema("platform")
+}
+
+model AgentEnrollment {
+  id          String  @id @default(cuid())
+  workspaceId String
+  agentId     String
+  enabled     Boolean @default(true)
+
+  workspace Workspace @relation(fields: [workspaceId], references: [id])
+  agent     Agent     @relation(fields: [agentId], references: [id])
+
+  @@unique([workspaceId, agentId])
+  @@schema("platform")
+}
+
+model Integration {
+  id          String            @id @default(cuid())
+  workspaceId String
+  type        IntegrationType
+  status      IntegrationStatus @default(DISCONNECTED)
+  label       String?
+  credentials Json              @default("{}")
+  createdAt   DateTime          @default(now())
+  updatedAt   DateTime          @updatedAt
+
+  workspace Workspace @relation(fields: [workspaceId], references: [id])
+
+  @@schema("platform")
+}
+
+enum IntegrationType {
+  MONDAY
+  PRINTAVO
+  SHOPWORKS
+  QUICKBOOKS
+  CUSTOM_REST
+  GMAIL
+  OUTLOOK
+
+  @@schema("platform")
+}
+
+enum IntegrationStatus {
+  CONNECTED
+  DISCONNECTED
+  ERROR
+
+  @@schema("platform")
+}
+
+model AuditLog {
+  id          String   @id @default(cuid())
+  workspaceId String
+  agentId     String?
+  userId      String?
+  timestamp   DateTime @default(now())
+  action      String
+  details     Json     @default("{}")
+
+  workspace Workspace @relation(fields: [workspaceId], references: [id])
+  agent     Agent?    @relation(fields: [agentId], references: [id])
+  user      User?     @relation(fields: [userId], references: [id])
+
+  @@index([workspaceId, timestamp(sort: Desc)])
+  @@index([agentId])
+  @@schema("platform")
+}
+
+model Notification {
+  id          String    @id @default(cuid())
+  workspaceId String
+  channel     String
+  payload     Json
+  sentAt      DateTime?
+  createdAt   DateTime  @default(now())
+
+  workspace Workspace @relation(fields: [workspaceId], references: [id])
+
+  @@schema("platform")
+}
+
+model ApiKey {
+  id          String    @id @default(cuid())
+  workspaceId String
+  keyHash     String    @unique
+  label       String
+  lastUsedAt  DateTime?
+  createdAt   DateTime  @default(now())
+
+  workspace Workspace @relation(fields: [workspaceId], references: [id])
+
+  @@schema("platform")
+}
+
+model Webhook {
+  id          String   @id @default(cuid())
+  workspaceId String
+  url         String
+  eventTypes  String[]
+  secret      String
+  createdAt   DateTime @default(now())
+
+  workspace  Workspace         @relation(fields: [workspaceId], references: [id])
+  deliveries WebhookDelivery[]
+
+  @@schema("platform")
+}
+
+model WebhookDelivery {
+  id           String   @id @default(cuid())
+  webhookId    String
+  eventType    String
+  payload      Json
+  statusCode   Int?
+  responseBody String?  @db.Text
+  error        String?
+  attempt      Int      @default(1)
+  deliveredAt  DateTime @default(now())
+
+  webhook Webhook @relation(fields: [webhookId], references: [id], onDelete: Cascade)
+
+  @@index([webhookId, deliveredAt(sort: Desc)])
+  @@schema("platform")
+}
+
+model Job {
+  id          String    @id @default(cuid())
+  workspaceId String
+  agentId     String?
+  type        String
+  queueName   String    @default("integration")
+  payload     Json
+  status      JobStatus @default(PENDING)
+  attempts    Int       @default(0)
+  error       String?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  workspace Workspace @relation(fields: [workspaceId], references: [id])
+
+  @@index([workspaceId, status])
+  @@index([queueName, status])
+  @@schema("platform")
+}
+
+model FileRef {
+  id          String   @id @default(cuid())
+  workspaceId String
+  bucket      String
+  key         String   @unique
+  filename    String
+  mimeType    String
+  sizeBytes   Int
+  version     Int      @default(1)
+  createdAt   DateTime @default(now())
+
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  @@index([workspaceId])
+  @@schema("platform")
+}
+
+enum JobStatus {
+  PENDING
+  RUNNING
+  COMPLETED
+  FAILED
+
+  @@schema("platform")
+}
+
+// ─── AGENT: ORDER INTAKE SCHEMA ───────────────────────────────────────────────
+
+model Order {
+  id            String      @id @default(cuid())
+  workspaceId   String
+  status        OrderStatus @default(PENDING)
+  source        OrderSource
+  customerId    String?
+  duplicateOfId String?
+  emailThreadId String?
+  createdAt     DateTime    @default(now())
+  updatedAt     DateTime    @updatedAt
+
+  workspace   Workspace    @relation(fields: [workspaceId], references: [id])
+  customer    Customer?    @relation(fields: [customerId], references: [id])
+  rawMessages RawMessage[]
+  parsedData  ParsedData?
+  duplicateOf Order?       @relation("Duplicates", fields: [duplicateOfId], references: [id])
+  duplicates  Order[]      @relation("Duplicates")
+
+  @@index([workspaceId, status])
+  @@index([workspaceId, createdAt(sort: Desc)])
+  @@index([emailThreadId])
+  @@schema("agent_order_intake")
+}
+
+enum OrderStatus {
+  PENDING
+  REVIEW_NEEDED
+  COMPLETED
+  FAILED
+
+  @@schema("agent_order_intake")
+}
+
+enum OrderSource {
+  SLACK
+  EMAIL
+  FORM
+  API
+  CSV
+
+  @@schema("agent_order_intake")
+}
+
+model RawMessage {
+  id          String   @id @default(cuid())
+  orderId     String
+  text        String   @db.Text
+  attachments Json     @default("[]")
+  source      String
+  messageId   String?
+  inReplyTo   String?
+  createdAt   DateTime @default(now())
+
+  order Order @relation(fields: [orderId], references: [id], onDelete: Cascade)
+
+  @@index([messageId])
+  @@schema("agent_order_intake")
+}
+
+model ParsedData {
+  id              String   @id @default(cuid())
+  orderId         String   @unique
+  data            Json
+  lineItems       Json     @default("[]")
+  issues          Json     @default("[]")
+  orderConfidence Float
+  fieldConfidence Json
+  needsReview     Boolean
+  createdAt       DateTime @default(now())
+
+  order Order @relation(fields: [orderId], references: [id], onDelete: Cascade)
+
+  @@schema("agent_order_intake")
+}
+
+model Customer {
+  id          String  @id @default(cuid())
+  workspaceId String
+  name        String
+  email       String?
+  phone       String?
+  externalRef String?
+
+  workspace Workspace @relation(fields: [workspaceId], references: [id])
+  orders    Order[]
+
+  @@index([workspaceId])
+  @@schema("agent_order_intake")
+}
+
+model Product {
+  id          String  @id @default(cuid())
+  workspaceId String
+  sku         String
+  name        String
+  externalRef String?
+
+  workspace Workspace @relation(fields: [workspaceId], references: [id])
+
+  @@unique([workspaceId, sku])
+  @@index([workspaceId])
+  @@schema("agent_order_intake")
+}
+
+model AutomationRule {
+  id          String   @id @default(cuid())
+  workspaceId String
+  name        String
+  trigger     String
+  steps       Json
+  enabled     Boolean  @default(true)
+  createdAt   DateTime @default(now())
+
+  @@index([workspaceId])
+  @@schema("agent_order_intake")
+}
