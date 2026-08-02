@@ -1,7 +1,11 @@
 import OpenAI from "openai";
 import type { NormalizedRecord, ExtractedData, ExtractedField, ExtractedLineItem } from "../contract";
 
-const client = new OpenAI();
+let client: OpenAI | null = null;
+function getClient() {
+  if (!client) client = new OpenAI();
+  return client;
+}
 
 const SYSTEM_PROMPT = `You are an order intake extraction assistant. Extract purchase order details from the provided message and any attachment text.
 
@@ -70,7 +74,7 @@ function toField<T>(raw: RawField | undefined): ExtractedField<T> {
 }
 
 export async function extract(record: NormalizedRecord): Promise<ExtractedData> {
-  const completion = await client.chat.completions.create({
+  const completion = await getClient().chat.completions.create({
     model: "gpt-4o",
     max_tokens: 2048,
     response_format: { type: "json_object" },
