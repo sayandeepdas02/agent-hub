@@ -352,6 +352,8 @@ model ParsedData {
   id              String   @id @default(cuid())
   orderId         String   @unique
   data            Json
+  lineItems       Json     @default("[]")
+  issues          Json     @default("[]")
   orderConfidence Float
   fieldConfidence Json
   needsReview     Boolean

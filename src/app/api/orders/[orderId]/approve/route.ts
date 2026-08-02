@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { audit } from "@/lib/audit";
 import { orderIntakeAgent, execute } from "@/lib/agents/order-intake";
+import type { OrderOverrides } from "@/lib/agents/order-intake/execute";
 
 export async function POST(
   req: NextRequest,
@@ -15,20 +16,12 @@ export async function POST(
     return NextResponse.json({ error: "Order is not pending review" }, { status: 400 });
   }
 
-  // Accept optional human overrides from the review form
-  let overrides: {
-    customerName?: string;
-    productSku?: string;
-    quantity?: number;
-    requestedShipDate?: string;
-    specialInstructions?: string;
-  } = {};
-
+  let overrides: OrderOverrides = {};
   try {
     const body = await req.json();
     overrides = body ?? {};
   } catch {
-    // No body is fine
+    // no body is fine
   }
 
   const result = await execute(orderId, order.workspaceId, overrides);

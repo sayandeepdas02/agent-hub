@@ -12,20 +12,42 @@ export interface NormalizedRecord {
 export interface ExtractedField<T = unknown> {
   value: T;
   confidence: number;
+  sourceLocation?: string;
+  alternatives?: Array<{ value: T; confidence: number }>;
+}
+
+export interface ExtractedLineItem {
+  product_sku: ExtractedField<string | null>;
+  product_name: ExtractedField<string | null>;
+  quantity: ExtractedField<number | null>;
+  unit_price: ExtractedField<number | null>;
+  color: ExtractedField<string | null>;
+  size: ExtractedField<string | null>;
+  uom: ExtractedField<string | null>;
 }
 
 export interface ExtractedData {
   fields: Record<string, ExtractedField>;
+  lineItems: ExtractedLineItem[];
   orderConfidence: number;
+}
+
+export type IssueSeverity = "error" | "warning";
+
+export interface Issue {
+  field: string;
+  code: string;
+  severity: IssueSeverity;
+  message: string;
 }
 
 export type ValidationOutcome = "auto" | "review";
 
 export interface ValidationResult {
   outcome: ValidationOutcome;
-  reasons: string[];
+  issues: Issue[];
   resolvedCustomerId?: string;
-  resolvedProductId?: string;
+  resolvedProductIds?: string[];
 }
 
 export interface ExecutionResult {

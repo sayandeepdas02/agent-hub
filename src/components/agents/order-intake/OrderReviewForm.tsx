@@ -3,11 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { cn } from "@/lib/utils";
-
-interface ExtractedField {
-  value: unknown;
-  confidence: number;
-}
+import type { ExtractedField, ExtractedLineItem, Issue } from "@/lib/agents/contract";
 
 interface OrderReviewFormProps {
   order: {
@@ -18,12 +14,43 @@ interface OrderReviewFormProps {
   };
   agentSlug: string;
   extractedFields: Record<string, ExtractedField>;
+  extractedLineItems: ExtractedLineItem[];
+  validationIssues: Issue[];
+}
+
+interface EditableLineItem {
+  productSku: string;
+  productName: string;
+  quantity: string;
+  unitPrice: string;
+  color: string;
+  size: string;
+  uom: string;
+}
+
+function fieldStr(f: ExtractedField | undefined): string {
+  if (!f || f.value === null || f.value === undefined) return "";
+  return String(f.value);
+}
+
+function initLineItems(extracted: ExtractedLineItem[]): EditableLineItem[] {
+  return extracted.map((item) => ({
+    productSku: fieldStr(item.product_sku),
+    productName: fieldStr(item.product_name),
+    quantity: fieldStr(item.quantity),
+    unitPrice: fieldStr(item.unit_price),
+    color: fieldStr(item.color),
+    size: fieldStr(item.size),
+    uom: fieldStr(item.uom),
+  }));
 }
 
 export function OrderReviewForm({
   order,
-  agentSlug,
+  agentSlug: _agentSlug,
   extractedFields,
+  extractedLineItems,
+  validationIssues,
 }: OrderReviewFormProps) {
   const router = useRouter();
   const [loading, setLoading] = useState<"approve" | "reject" | null>(null);
@@ -31,26 +58,33 @@ export function OrderReviewForm({
   const [rejectReason, setRejectReason] = useState("");
   const [error, setError] = useState<string | null>(null);
 
-  // Editable field state — seeded from AI extraction
   const [customerName, setCustomerName] = useState(
-    stringify(extractedFields["customer_name"]?.value) ??
-      order.customerName ??
-      ""
+    fieldStr(extractedFields["customer_name"]) || order.customerName || ""
   );
-  const [productSku, setProductSku] = useState(
-    stringify(extractedFields["product_sku"]?.value) ?? ""
-  );
-  const [quantity, setQuantity] = useState(
-    stringify(extractedFields["quantity"]?.value) ?? ""
-  );
-  const [shipDate, setShipDate] = useState(
-    stringify(extractedFields["requested_ship_date"]?.value) ?? ""
-  );
-  const [instructions, setInstructions] = useState(
-    stringify(extractedFields["special_instructions"]?.value) ?? ""
+  const [poNumber, setPoNumber] = useState(fieldStr(extractedFields["po_number"]));
+  const [shipDate, setShipDate] = useState(fieldStr(extractedFields["requested_ship_date"]));
+  const [instructions, setInstructions] = useState(fieldStr(extractedFields["special_instructions"]));
+  const [lineItems, setLineItems] = useState<EditableLineItem[]>(
+    () => initLineItems(extractedLineItems)
   );
 
   const isPending = order.status === "REVIEW_NEEDED";
+  const errors = validationIssues.filter((i) => i.severity === "error");
+  const warnings = validationIssues.filter((i) => i.severity === "warning");
+
+  function updateLineItem(idx: number, field: keyof EditableLineItem, value: string) {
+    setLineItems((prev) =>
+      prev.map((item, i) => (i === idx ? { ...item, [field]: value } : item))
+    );
+  }
+
+  function pickAlternative(
+    itemIdx: number,
+    field: keyof EditableLineItem,
+    value: string
+  ) {
+    updateLineItem(itemIdx, field, value);
+  }
 
   async function handleApprove() {
     setLoading("approve");
@@ -61,15 +95,22 @@ export function OrderReviewForm({
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           customerName: customerName || undefined,
-          productSku: productSku || undefined,
-          quantity: quantity ? Number(quantity) : undefined,
           requestedShipDate: shipDate || undefined,
           specialInstructions: instructions || undefined,
+          lineItems: lineItems.map((item) => ({
+            productSku: item.productSku || undefined,
+            productName: item.productName || undefined,
+            quantity: item.quantity ? Number(item.quantity) : undefined,
+            unitPrice: item.unitPrice ? Number(item.unitPrice) : undefined,
+            color: item.color || undefined,
+            size: item.size || undefined,
+            uom: item.uom || undefined,
+          })),
         }),
       });
       if (!res.ok) {
         const body = await res.json();
-        throw new Error(body.error ?? "Approval failed");
+        throw new Error((body as { error?: string }).error ?? "Approval failed");
       }
       router.refresh();
     } catch (err) {
@@ -94,7 +135,7 @@ export function OrderReviewForm({
       });
       if (!res.ok) {
         const body = await res.json();
-        throw new Error(body.error ?? "Rejection failed");
+        throw new Error((body as { error?: string }).error ?? "Rejection failed");
       }
       router.refresh();
     } catch (err) {
@@ -104,101 +145,135 @@ export function OrderReviewForm({
     }
   }
 
-  const fields = [
-    {
-      key: "customer_name",
-      label: "Customer",
-      value: customerName,
-      onChange: setCustomerName,
-      type: "text" as const,
-    },
-    {
-      key: "product_sku",
-      label: "Product / SKU",
-      value: productSku,
-      onChange: setProductSku,
-      type: "text" as const,
-    },
-    {
-      key: "quantity",
-      label: "Quantity",
-      value: quantity,
-      onChange: setQuantity,
-      type: "number" as const,
-    },
-    {
-      key: "requested_ship_date",
-      label: "Ship Date",
-      value: shipDate,
-      onChange: setShipDate,
-      type: "text" as const,
-    },
-    {
-      key: "special_instructions",
-      label: "Instructions",
-      value: instructions,
-      onChange: setInstructions,
-      type: "text" as const,
-    },
-  ];
-
   return (
     <div className="space-y-5">
+      {/* ── Validation issues ─────────────────────────────────────────── */}
+      {validationIssues.length > 0 && (
+        <div>
+          <h3 className="text-xs font-mono text-[var(--color-text-tertiary)] uppercase tracking-wider mb-2">
+            Validation Issues
+          </h3>
+          <div className="space-y-1.5">
+            {errors.map((iss, i) => (
+              <IssueRow key={i} issue={iss} />
+            ))}
+            {warnings.map((iss, i) => (
+              <IssueRow key={i} issue={iss} />
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* ── Order header fields ────────────────────────────────────────── */}
       <div>
-        <h3 className="text-xs font-mono text-[var(--color-text-tertiary)] uppercase tracking-wider mb-4">
+        <h3 className="text-xs font-mono text-[var(--color-text-tertiary)] uppercase tracking-wider mb-3">
           Order Details
         </h3>
-
         <div className="space-y-3">
-          {fields.map(({ key, label, value, onChange, type }) => {
-            const conf = extractedFields[key]?.confidence;
-            const hasConf = conf !== undefined;
-            const confColor =
-              hasConf && conf >= 0.9
-                ? "var(--color-green)"
-                : "var(--color-amber)";
-
-            return (
-              <div key={key}>
-                <div className="flex items-center justify-between mb-1">
-                  <label className="text-xs font-mono text-[var(--color-text-tertiary)]">
-                    {label}
-                  </label>
-                  {hasConf && (
-                    <span
-                      className="text-xs font-mono"
-                      style={{ color: confColor }}
-                      title="AI confidence score"
-                    >
-                      {(conf * 100).toFixed(0)}%
-                    </span>
-                  )}
-                </div>
-                <input
-                  type={type}
-                  value={value}
-                  onChange={(e) => onChange(e.target.value)}
-                  disabled={!isPending}
-                  className={cn(
-                    "w-full text-sm px-3 py-1.5 rounded border bg-[var(--color-surface-raised)]",
-                    "text-[var(--color-text-primary)] placeholder:text-[var(--color-text-tertiary)]",
-                    "focus:outline-none focus:border-[var(--color-primary)] transition-colors",
-                    isPending
-                      ? "border-[var(--color-border)] cursor-text"
-                      : "border-[var(--color-border)] opacity-60 cursor-default",
-                    hasConf && conf < 0.9 && isPending
-                      ? "border-l-2 border-l-[var(--color-amber)]"
-                      : ""
-                  )}
-                  placeholder={`Enter ${label.toLowerCase()}`}
-                />
-              </div>
-            );
-          })}
+          <FormField
+            label="Customer"
+            value={customerName}
+            onChange={setCustomerName}
+            disabled={!isPending}
+            confidence={extractedFields["customer_name"]?.confidence}
+          />
+          <FormField
+            label="PO Number"
+            value={poNumber}
+            onChange={setPoNumber}
+            disabled={!isPending}
+            confidence={extractedFields["po_number"]?.confidence}
+          />
+          <FormField
+            label="Ship Date"
+            value={shipDate}
+            onChange={setShipDate}
+            disabled={!isPending}
+            confidence={extractedFields["requested_ship_date"]?.confidence}
+          />
+          <FormField
+            label="Instructions"
+            value={instructions}
+            onChange={setInstructions}
+            disabled={!isPending}
+            confidence={extractedFields["special_instructions"]?.confidence}
+          />
         </div>
       </div>
 
-      {/* Actions */}
+      {/* ── Line items ────────────────────────────────────────────────── */}
+      {(lineItems.length > 0 || extractedLineItems.length > 0) && (
+        <div>
+          <h3 className="text-xs font-mono text-[var(--color-text-tertiary)] uppercase tracking-wider mb-3">
+            Line Items
+          </h3>
+          <div className="space-y-3">
+            {lineItems.map((item, idx) => {
+              const src = extractedLineItems[idx];
+              return (
+                <div
+                  key={idx}
+                  className="border border-[var(--color-border)] rounded p-3 space-y-2 bg-[var(--color-surface-raised)]"
+                >
+                  <p className="text-xs font-mono text-[var(--color-text-tertiary)]">
+                    Item {idx + 1}
+                  </p>
+                  <div className="grid grid-cols-2 gap-2">
+                    <LineItemField
+                      label="SKU"
+                      value={item.productSku}
+                      onChange={(v) => updateLineItem(idx, "productSku", v)}
+                      disabled={!isPending}
+                      confidence={src?.product_sku?.confidence}
+                      alternatives={src?.product_sku?.alternatives?.map((a) => String(a.value))}
+                      onPickAlternative={(v) => pickAlternative(idx, "productSku", v)}
+                    />
+                    <LineItemField
+                      label="Name"
+                      value={item.productName}
+                      onChange={(v) => updateLineItem(idx, "productName", v)}
+                      disabled={!isPending}
+                      confidence={src?.product_name?.confidence}
+                    />
+                    <LineItemField
+                      label="Qty"
+                      value={item.quantity}
+                      onChange={(v) => updateLineItem(idx, "quantity", v)}
+                      disabled={!isPending}
+                      confidence={src?.quantity?.confidence}
+                      type="number"
+                    />
+                    <LineItemField
+                      label="Unit Price"
+                      value={item.unitPrice}
+                      onChange={(v) => updateLineItem(idx, "unitPrice", v)}
+                      disabled={!isPending}
+                      confidence={src?.unit_price?.confidence}
+                      type="number"
+                    />
+                    <LineItemField
+                      label="Color"
+                      value={item.color}
+                      onChange={(v) => updateLineItem(idx, "color", v)}
+                      disabled={!isPending}
+                      confidence={src?.color?.confidence}
+                    />
+                    <LineItemField
+                      label="Size"
+                      value={item.size}
+                      onChange={(v) => updateLineItem(idx, "size", v)}
+                      disabled={!isPending}
+                      confidence={src?.size?.confidence}
+                    />
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
+      {/* ── Actions ───────────────────────────────────────────────────── */}
       {isPending && (
         <div className="space-y-3 pt-2 border-t border-[var(--color-border)]">
           {error && (
@@ -260,9 +335,7 @@ export function OrderReviewForm({
         <div className="pt-2 border-t border-[var(--color-border)]">
           <p className="text-xs font-mono text-[var(--color-text-tertiary)]">
             Status:{" "}
-            <span className="text-[var(--color-text-secondary)]">
-              {order.status}
-            </span>
+            <span className="text-[var(--color-text-secondary)]">{order.status}</span>
           </p>
         </div>
       )}
@@ -270,7 +343,129 @@ export function OrderReviewForm({
   );
 }
 
-function stringify(v: unknown): string | undefined {
-  if (v === null || v === undefined) return undefined;
-  return String(v);
+// ── Sub-components ─────────────────────────────────────────────────────────────
+
+function IssueRow({ issue }: { issue: Issue }) {
+  const isError = issue.severity === "error";
+  return (
+    <div
+      className={cn(
+        "flex items-start gap-2 px-3 py-2 rounded text-xs font-mono",
+        isError
+          ? "bg-[var(--color-status-failed-bg)] text-[var(--color-rust)]"
+          : "bg-[var(--color-status-pending-bg)] text-[var(--color-amber)]"
+      )}
+    >
+      <span className="shrink-0 font-bold uppercase">{issue.severity}</span>
+      <span className="text-[var(--color-text-secondary)]">{issue.message}</span>
+    </div>
+  );
+}
+
+interface FormFieldProps {
+  label: string;
+  value: string;
+  onChange: (v: string) => void;
+  disabled: boolean;
+  confidence?: number;
+  type?: "text" | "number";
+}
+
+function FormField({ label, value, onChange, disabled, confidence, type = "text" }: FormFieldProps) {
+  const hasConf = confidence !== undefined;
+  const confColor =
+    hasConf && confidence >= 0.9 ? "var(--color-green)" : "var(--color-amber)";
+
+  return (
+    <div>
+      <div className="flex items-center justify-between mb-1">
+        <label className="text-xs font-mono text-[var(--color-text-tertiary)]">{label}</label>
+        {hasConf && (
+          <span className="text-xs font-mono" style={{ color: confColor }}>
+            {(confidence * 100).toFixed(0)}%
+          </span>
+        )}
+      </div>
+      <input
+        type={type}
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        disabled={disabled}
+        className={cn(
+          "w-full text-sm px-3 py-1.5 rounded border bg-[var(--color-surface-raised)]",
+          "text-[var(--color-text-primary)] placeholder:text-[var(--color-text-tertiary)]",
+          "focus:outline-none focus:border-[var(--color-primary)] transition-colors",
+          disabled ? "opacity-60 cursor-default border-[var(--color-border)]" : "border-[var(--color-border)] cursor-text",
+          hasConf && confidence < 0.9 && !disabled ? "border-l-2 border-l-[var(--color-amber)]" : ""
+        )}
+        placeholder={label}
+      />
+    </div>
+  );
+}
+
+interface LineItemFieldProps {
+  label: string;
+  value: string;
+  onChange: (v: string) => void;
+  disabled: boolean;
+  confidence?: number;
+  type?: "text" | "number";
+  alternatives?: string[];
+  onPickAlternative?: (v: string) => void;
+}
+
+function LineItemField({
+  label,
+  value,
+  onChange,
+  disabled,
+  confidence,
+  type = "text",
+  alternatives,
+  onPickAlternative,
+}: LineItemFieldProps) {
+  const hasConf = confidence !== undefined;
+  const confColor = hasConf && confidence >= 0.9 ? "var(--color-green)" : "var(--color-amber)";
+
+  return (
+    <div>
+      <div className="flex items-center justify-between mb-0.5">
+        <label className="text-xs font-mono text-[var(--color-text-tertiary)]">{label}</label>
+        {hasConf && (
+          <span className="text-xs font-mono" style={{ color: confColor }}>
+            {(confidence * 100).toFixed(0)}%
+          </span>
+        )}
+      </div>
+      <input
+        type={type}
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        disabled={disabled}
+        className={cn(
+          "w-full text-xs px-2 py-1 rounded border bg-[var(--color-surface)]",
+          "text-[var(--color-text-primary)] placeholder:text-[var(--color-text-tertiary)]",
+          "focus:outline-none focus:border-[var(--color-primary)] transition-colors font-mono",
+          disabled ? "opacity-60 cursor-default border-[var(--color-border)]" : "border-[var(--color-border)] cursor-text",
+          hasConf && confidence < 0.9 && !disabled ? "border-l-2 border-l-[var(--color-amber)]" : ""
+        )}
+        placeholder={label}
+      />
+      {alternatives && alternatives.length > 0 && !disabled && (
+        <div className="mt-1 flex flex-wrap gap-1">
+          {alternatives.map((alt, i) => (
+            <button
+              key={i}
+              type="button"
+              onClick={() => onPickAlternative?.(alt)}
+              className="text-xs px-1.5 py-0.5 font-mono rounded border border-[var(--color-border)] text-[var(--color-text-tertiary)] hover:border-[var(--color-primary)] hover:text-[var(--color-primary)] transition-colors"
+            >
+              {alt}
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  );
 }

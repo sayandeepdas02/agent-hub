@@ -43,6 +43,8 @@ export function createExtractionWorker() {
         data: {
           orderId,
           data: extracted.fields as object,
+          lineItems: extracted.lineItems as unknown as object[],
+          issues: validation.issues as unknown as object[],
           orderConfidence: extracted.orderConfidence,
           fieldConfidence,
           needsReview: validation.outcome === "review",
@@ -52,6 +54,7 @@ export function createExtractionWorker() {
       if (validation.outcome === "auto") {
         await execute(orderId, workspaceId, {
           resolvedCustomerId: validation.resolvedCustomerId,
+          resolvedProductIds: validation.resolvedProductIds,
         });
         await audit({
           workspaceId,
@@ -60,7 +63,7 @@ export function createExtractionWorker() {
           details: {
             orderId,
             ...(validation.resolvedCustomerId ? { customerId: validation.resolvedCustomerId } : {}),
-            ...(validation.resolvedProductId ? { productId: validation.resolvedProductId } : {}),
+            ...(validation.resolvedProductIds?.length ? { productIds: validation.resolvedProductIds } : {}),
           },
         });
       } else {
@@ -72,13 +75,17 @@ export function createExtractionWorker() {
           workspaceId,
           agentId: orderIntakeAgent.id,
           action: "order.needs_review",
-          details: { orderId, reasons: validation.reasons },
+          details: { orderId, issues: validation.issues },
         });
         await runAutomationRules("order.needs_review", workspaceId, {
           orderId,
-          reasons: validation.reasons,
+          reasons: validation.issues.map((iss) => iss.message),
         });
-        await notifySlackReviewNeeded(orderId, workspaceId, validation.reasons);
+        await notifySlackReviewNeeded(
+          orderId,
+          workspaceId,
+          validation.issues.map((iss) => `[${iss.severity.toUpperCase()}] ${iss.message}`)
+        );
       }
 
       await prisma.job.update({

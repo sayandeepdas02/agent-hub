@@ -8,6 +8,7 @@ import { OrderReviewForm } from "@/components/agents/order-intake/OrderReviewFor
 import { notFound } from "next/navigation";
 import { formatDateTime } from "@/lib/utils";
 import type { TimelineStage } from "@/components/platform/AgentRunTimeline";
+import type { ExtractedField, ExtractedLineItem, Issue } from "@/lib/agents/contract";
 
 export default async function OrderDetailPage({
   params,
@@ -29,13 +30,10 @@ export default async function OrderDetailPage({
   if (!order) notFound();
 
   const auditEntries = await prisma.auditLog.findMany({
-    where: {
-      details: { path: ["orderId"], equals: orderId },
-    },
+    where: { details: { path: ["orderId"], equals: orderId } },
     orderBy: { timestamp: "asc" },
   });
 
-  // Build timeline from audit entries
   const actionToStage: Record<string, string> = {
     "order.received": "received",
     "order.auto_created": "created",
@@ -44,8 +42,6 @@ export default async function OrderDetailPage({
     "order.rejected": "failed",
     "order.extraction_failed": "failed",
   };
-
-  const stageOrder = ["received", "extracted", "review", "created", "notified"];
 
   const completedActions = new Set(
     auditEntries.map((e) => actionToStage[e.action]).filter(Boolean)
@@ -70,24 +66,15 @@ export default async function OrderDetailPage({
     {
       id: "created",
       label: "Created",
-      status:
-        order.status === "COMPLETED"
-          ? "done"
-          : order.status === "FAILED"
-          ? "failed"
-          : "pending",
+      status: order.status === "COMPLETED" ? "done" : order.status === "FAILED" ? "failed" : "pending",
     },
     { id: "notified", label: "Notified", status: order.status === "COMPLETED" ? "done" : "pending" },
   ];
 
-  const parsedFields = (order.parsedData?.data ?? {}) as Record<
-    string,
-    { value: unknown; confidence: number }
-  >;
-  const fieldConfidence = (order.parsedData?.fieldConfidence ?? {}) as Record<
-    string,
-    number
-  >;
+  const parsedFields = (order.parsedData?.data ?? {}) as unknown as Record<string, ExtractedField>;
+  const parsedLineItems = (order.parsedData?.lineItems ?? []) as unknown as ExtractedLineItem[];
+  const validationIssues = (order.parsedData?.issues ?? []) as unknown as Issue[];
+  const fieldConfidence = (order.parsedData?.fieldConfidence ?? {}) as unknown as Record<string, number>;
 
   const rawMessage = order.rawMessages[0];
 
@@ -97,9 +84,7 @@ export default async function OrderDetailPage({
       <div className="flex-1 flex flex-col min-h-0 overflow-hidden">
         {/* Order header */}
         <div className="px-6 py-3 border-b border-[var(--color-border)] bg-[var(--color-surface)] flex items-center gap-4 shrink-0">
-          <span className="font-mono text-xs text-[var(--color-text-tertiary)]">
-            Order
-          </span>
+          <span className="font-mono text-xs text-[var(--color-text-tertiary)]">Order</span>
           <span className="font-mono text-sm font-medium text-[var(--color-text-primary)]">
             {orderId.slice(-8)}
           </span>
@@ -130,48 +115,49 @@ export default async function OrderDetailPage({
                 </div>
               </div>
 
-              {/* AI extraction results */}
+              {/* Top-level extracted fields */}
               {order.parsedData && (
                 <div>
                   <h3 className="text-xs font-mono text-[var(--color-text-tertiary)] uppercase tracking-wider mb-3">
-                    Extraction Results
+                    Extracted Header
                   </h3>
-                  <div className="space-y-2">
+                  <div className="space-y-1">
                     {Object.entries(parsedFields).map(([key, field]) => {
-                      const conf = fieldConfidence[key] ?? 0;
-                      const confColor =
-                        conf >= 0.9
-                          ? "var(--color-green)"
-                          : "var(--color-amber)";
+                      const conf = fieldConfidence[key] ?? field.confidence ?? 0;
+                      const confColor = conf >= 0.9 ? "var(--color-green)" : "var(--color-amber)";
                       return (
                         <div
                           key={key}
-                          className="flex items-center justify-between gap-4 py-1.5 border-b border-[var(--color-border)] last:border-0"
+                          className="flex items-start justify-between gap-4 py-1.5 border-b border-[var(--color-border)] last:border-0"
                         >
-                          <span className="text-xs font-mono text-[var(--color-text-tertiary)] w-40 shrink-0">
+                          <span className="text-xs font-mono text-[var(--color-text-tertiary)] w-36 shrink-0 pt-0.5">
                             {key.replace(/_/g, " ")}
                           </span>
-                          <span className="text-sm text-[var(--color-text-primary)] flex-1">
-                            {field.value !== null && field.value !== undefined
-                              ? String(field.value)
-                              : "—"}
-                          </span>
-                          <span
-                            className="text-xs font-mono shrink-0"
-                            style={{ color: confColor }}
-                          >
+                          <div className="flex-1 min-w-0">
+                            <span className="text-sm text-[var(--color-text-primary)]">
+                              {field.value !== null && field.value !== undefined
+                                ? String(field.value)
+                                : "—"}
+                            </span>
+                            {field.sourceLocation && (
+                              <p className="text-xs font-mono text-[var(--color-text-tertiary)] mt-0.5 truncate">
+                                &ldquo;{field.sourceLocation}&rdquo;
+                              </p>
+                            )}
+                          </div>
+                          <span className="text-xs font-mono shrink-0 pt-0.5" style={{ color: confColor }}>
                             {(conf * 100).toFixed(0)}%
                           </span>
                         </div>
                       );
                     })}
                   </div>
-                  <p className="mt-3 text-xs font-mono text-[var(--color-text-tertiary)]">
+                  <p className="mt-2 text-xs font-mono text-[var(--color-text-tertiary)]">
                     Order confidence:{" "}
                     <span
                       style={{
                         color:
-                          (order.parsedData.orderConfidence ?? 0) >= 0.9
+                          (order.parsedData.orderConfidence ?? 0) >= 0.7
                             ? "var(--color-green)"
                             : "var(--color-amber)",
                       }}
@@ -179,6 +165,55 @@ export default async function OrderDetailPage({
                       {((order.parsedData.orderConfidence ?? 0) * 100).toFixed(0)}%
                     </span>
                   </p>
+                </div>
+              )}
+
+              {/* Line items */}
+              {parsedLineItems.length > 0 && (
+                <div>
+                  <h3 className="text-xs font-mono text-[var(--color-text-tertiary)] uppercase tracking-wider mb-3">
+                    Line Items ({parsedLineItems.length})
+                  </h3>
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-xs font-mono">
+                      <thead>
+                        <tr className="border-b border-[var(--color-border)]">
+                          {["SKU", "Name", "Qty", "Price", "Color", "Size", "UOM"].map((h) => (
+                            <th key={h} className="text-left py-1.5 pr-3 text-[var(--color-text-tertiary)] font-medium">
+                              {h}
+                            </th>
+                          ))}
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {parsedLineItems.map((item, i) => (
+                          <tr key={i} className="border-b border-[var(--color-border)] last:border-0">
+                            <td className="py-1.5 pr-3">
+                              <LineItemCell field={item.product_sku} />
+                            </td>
+                            <td className="py-1.5 pr-3">
+                              <LineItemCell field={item.product_name} />
+                            </td>
+                            <td className="py-1.5 pr-3">
+                              <LineItemCell field={item.quantity} />
+                            </td>
+                            <td className="py-1.5 pr-3">
+                              <LineItemCell field={item.unit_price} prefix="$" />
+                            </td>
+                            <td className="py-1.5 pr-3">
+                              <LineItemCell field={item.color} />
+                            </td>
+                            <td className="py-1.5 pr-3">
+                              <LineItemCell field={item.size} />
+                            </td>
+                            <td className="py-1.5 pr-3">
+                              <LineItemCell field={item.uom} />
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
                 </div>
               )}
 
@@ -201,10 +236,45 @@ export default async function OrderDetailPage({
               }}
               agentSlug={agentSlug}
               extractedFields={parsedFields}
+              extractedLineItems={parsedLineItems}
+              validationIssues={validationIssues}
             />
           }
         />
       </div>
     </>
+  );
+}
+
+function LineItemCell({
+  field,
+  prefix = "",
+}: {
+  field: ExtractedField;
+  prefix?: string;
+}) {
+  const val = field.value;
+  const conf = field.confidence ?? 0;
+  const confColor = conf >= 0.9 ? "var(--color-green)" : conf >= 0.7 ? "var(--color-amber)" : "var(--color-rust)";
+
+  if (val === null || val === undefined) {
+    return <span className="text-[var(--color-text-tertiary)]">—</span>;
+  }
+
+  return (
+    <span
+      className="font-mono"
+      style={{ color: conf < 0.7 ? "var(--color-amber)" : "var(--color-text-primary)" }}
+      title={`${(conf * 100).toFixed(0)}% confidence${field.sourceLocation ? `\n"${field.sourceLocation}"` : ""}`}
+    >
+      <span style={{ borderBottom: `1px dotted ${confColor}` }}>
+        {prefix}{String(val)}
+      </span>
+      {field.alternatives && field.alternatives.length > 0 && (
+        <span className="ml-1 text-[var(--color-text-tertiary)]">
+          (+{field.alternatives.length})
+        </span>
+      )}
+    </span>
   );
 }

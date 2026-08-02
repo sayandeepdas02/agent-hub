@@ -11,6 +11,16 @@ export interface OrderOverrides {
   requestedShipDate?: string;
   specialInstructions?: string;
   resolvedCustomerId?: string;
+  resolvedProductIds?: string[];
+  lineItems?: Array<{
+    productSku?: string;
+    productName?: string;
+    quantity?: number;
+    unitPrice?: number;
+    color?: string;
+    size?: string;
+    uom?: string;
+  }>;
 }
 
 export async function execute(
