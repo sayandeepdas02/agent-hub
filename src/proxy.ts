@@ -24,7 +24,13 @@ export const proxy = auth((req) => {
     pathname === "/api/orders" ||
     pathname === "/api/orders/submit";
 
-  if (isPublic) return NextResponse.next();
+  if (isPublic) {
+    // Authenticated users visiting the landing page go straight to the app
+    if (pathname === "/" && req.auth) {
+      return NextResponse.redirect(new URL("/dashboard", req.url));
+    }
+    return NextResponse.next();
+  }
 
   if (!req.auth) {
     const loginUrl = new URL("/login", req.url);
