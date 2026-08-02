@@ -1,12 +1,15 @@
 import { Resend } from "resend";
 
-const resend = new Resend(process.env.RESEND_API_KEY);
 const FROM = process.env.RESEND_FROM ?? "Agent Hub <noreply@agenthub.app>";
 const APP_URL = process.env.NEXTAUTH_URL ?? "http://localhost:3000";
 
+function getResend() {
+  return new Resend(process.env.RESEND_API_KEY);
+}
+
 export async function sendPasswordResetEmail(email: string, token: string) {
   const url = `${APP_URL}/reset-password?token=${token}`;
-  await resend.emails.send({
+  await getResend().emails.send({
     from: FROM,
     to: email,
     subject: "Reset your Agent Hub password",
@@ -25,7 +28,7 @@ export async function sendWorkspaceInvite(
   token: string
 ) {
   const url = `${APP_URL}/invite/${token}`;
-  await resend.emails.send({
+  await getResend().emails.send({
     from: FROM,
     to: email,
     subject: `${inviterName} invited you to ${workspaceName} on Agent Hub`,
