@@ -39,6 +39,7 @@ export interface Issue {
   code: string;
   severity: IssueSeverity;
   message: string;
+  extractedValue?: string;
 }
 
 export type ValidationOutcome = "auto" | "review";

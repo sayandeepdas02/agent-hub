@@ -128,6 +128,7 @@ export async function validate(
         code: "NOT_FOUND",
         severity: "warning",
         message: `Customer not found: "${customerName}"`,
+        extractedValue: customerName,
       });
     } else {
       resolvedCustomerId = customer.id;
@@ -146,6 +147,7 @@ export async function validate(
           code: "NOT_FOUND",
           severity: "warning",
           message: `Line item ${i + 1}: product not found for "${query}"`,
+          extractedValue: query,
         });
       }
       resolvedProductIds.push(product?.id ?? "");

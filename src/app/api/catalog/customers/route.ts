@@ -2,11 +2,26 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requireAuth } from "@/lib/auth-utils";
 
-export async function GET() {
+export async function GET(req: NextRequest) {
   const { workspaceId } = await requireAuth();
+  const { searchParams } = new URL(req.url);
+  const q = searchParams.get("q")?.trim() ?? "";
+  const limit = Math.min(Number(searchParams.get("limit") ?? 100), 100);
+
   const customers = await prisma.customer.findMany({
-    where: { workspaceId },
+    where: {
+      workspaceId,
+      ...(q
+        ? {
+            OR: [
+              { name: { contains: q, mode: "insensitive" } },
+              { email: { contains: q, mode: "insensitive" } },
+            ],
+          }
+        : {}),
+    },
     orderBy: { name: "asc" },
+    take: limit,
   });
   return NextResponse.json(customers);
 }
