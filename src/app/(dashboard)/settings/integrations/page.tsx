@@ -4,11 +4,13 @@ import { TopBar } from "@/components/platform/shell/TopBar";
 import { IntegrationCard } from "@/components/platform/IntegrationCard";
 
 const INTEGRATION_TYPES = [
-  { type: "CUSTOM_REST", label: "Custom REST", description: "POST order data to any HTTP endpoint" },
-  { type: "MONDAY", label: "Monday.com", description: "Create items on Monday boards" },
-  { type: "PRINTAVO", label: "Printavo", description: "Push orders to Printavo" },
-  { type: "SHOPWORKS", label: "ShopWorks", description: "Sync with ShopWorks" },
-  { type: "QUICKBOOKS", label: "QuickBooks", description: "Invoice and accounting sync" },
+  { type: "GMAIL",       label: "Gmail",        description: "Sync a shared Gmail inbox for order emails",   oauth: true },
+  { type: "OUTLOOK",     label: "Outlook",       description: "Sync a shared Outlook inbox for order emails", oauth: true },
+  { type: "CUSTOM_REST", label: "Custom REST",   description: "POST order data to any HTTP endpoint",         oauth: false },
+  { type: "MONDAY",      label: "Monday.com",    description: "Create items on Monday boards",                oauth: false },
+  { type: "PRINTAVO",    label: "Printavo",      description: "Push orders to Printavo",                      oauth: false },
+  { type: "SHOPWORKS",   label: "ShopWorks",     description: "Sync with ShopWorks",                          oauth: false },
+  { type: "QUICKBOOKS",  label: "QuickBooks",    description: "Invoice and accounting sync",                  oauth: false },
 ] as const;
 
 export default async function IntegrationsPage() {
@@ -28,13 +30,14 @@ export default async function IntegrationsPage() {
             </p>
           </div>
 
-          {INTEGRATION_TYPES.map(({ type, label, description }) => (
+          {INTEGRATION_TYPES.map(({ type, label, description, oauth }) => (
             <IntegrationCard
               key={type}
               type={type}
               label={label}
               description={description}
               status={byType[type]?.status ?? "DISCONNECTED"}
+              oauth={oauth}
             />
           ))}
         </div>

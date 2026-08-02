@@ -6,7 +6,7 @@ import { orderIntakeAgent } from "../agents/order-intake/index";
 import { execute } from "../agents/order-intake/execute";
 import { runAutomationRules } from "../automation";
 import { notifySlackReviewNeeded } from "../notify";
-import { extractAttachmentText } from "../pdf";
+import { extractAttachmentText } from "../attachments";
 import type { NormalizedRecord } from "../agents/contract";
 
 export interface ExtractionJobData {

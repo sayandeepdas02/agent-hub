@@ -9,6 +9,8 @@ const VALID_TYPES = new Set<string>([
   "SHOPWORKS",
   "QUICKBOOKS",
   "CUSTOM_REST",
+  "GMAIL",
+  "OUTLOOK",
 ]);
 
 export async function POST(

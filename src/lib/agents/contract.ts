@@ -5,7 +5,7 @@ export interface NormalizedRecord {
   workspaceId: string;
   source: TriggerSource;
   text: string;
-  attachments: Array<{ name: string; url: string; mimeType: string }>;
+  attachments: Array<{ name: string; url?: string; content?: string; mimeType: string; s3Key?: string }>;
   metadata: Record<string, unknown>;
 }
 

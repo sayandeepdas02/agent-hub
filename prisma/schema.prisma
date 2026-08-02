@@ -170,6 +170,8 @@ enum IntegrationType {
   SHOPWORKS
   QUICKBOOKS
   CUSTOM_REST
+  GMAIL
+  OUTLOOK
 
   @@schema("platform")
 }
@@ -294,6 +296,7 @@ model Order {
   source        OrderSource
   customerId    String?
   duplicateOfId String?
+  emailThreadId String?
   createdAt     DateTime    @default(now())
   updatedAt     DateTime    @updatedAt
 
@@ -306,6 +309,7 @@ model Order {
 
   @@index([workspaceId, status])
   @@index([workspaceId, createdAt(sort: Desc)])
+  @@index([emailThreadId])
   @@schema("agent_order_intake")
 }
 
@@ -334,10 +338,13 @@ model RawMessage {
   text        String   @db.Text
   attachments Json     @default("[]")
   source      String
+  messageId   String?
+  inReplyTo   String?
   createdAt   DateTime @default(now())
 
   order Order @relation(fields: [orderId], references: [id], onDelete: Cascade)
 
+  @@index([messageId])
   @@schema("agent_order_intake")
 }
 

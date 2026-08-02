@@ -22,16 +22,43 @@ async function findDuplicate(workspaceId: string, text: string, excludeOrderId: 
 }
 
 export async function ingestOrder(record: NormalizedRecord) {
+  const emailThreadId = record.metadata?.emailThreadId as string | undefined;
+  const messageId = record.metadata?.messageId as string | undefined;
+  const inReplyTo = record.metadata?.inReplyTo as string | undefined;
+
+  // Thread detection — if we have a threadId and an order already has it, append instead
+  if (emailThreadId) {
+    const threadOrder = await prisma.order.findFirst({
+      where: { workspaceId: record.workspaceId, emailThreadId },
+    });
+    if (threadOrder) {
+      await prisma.rawMessage.create({
+        data: {
+          orderId: threadOrder.id,
+          text: record.text,
+          attachments: record.attachments as object[],
+          source: record.source,
+          messageId,
+          inReplyTo,
+        },
+      });
+      return threadOrder;
+    }
+  }
+
   const order = await prisma.order.create({
     data: {
       workspaceId: record.workspaceId,
       status: "PENDING",
       source: record.source.toUpperCase() as OrderSource,
+      emailThreadId,
       rawMessages: {
         create: {
           text: record.text,
           attachments: record.attachments as object[],
           source: record.source,
+          messageId,
+          inReplyTo,
         },
       },
     },
@@ -68,7 +95,7 @@ export async function ingestOrder(record: NormalizedRecord) {
     return order;
   }
 
-  // Enqueue extraction — worker handles extract/validate/execute asynchronously
+  // Enqueue extraction async — worker handles extract/validate/execute
   await enqueueJob({
     workspaceId: record.workspaceId,
     agentId: orderIntakeAgent.id,

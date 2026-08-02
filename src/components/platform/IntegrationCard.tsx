@@ -38,9 +38,10 @@ interface IntegrationCardProps {
   label: string;
   description: string;
   status: string;
+  oauth?: boolean;
 }
 
-export function IntegrationCard({ type, label, description, status }: IntegrationCardProps) {
+export function IntegrationCard({ type, label, description, status, oauth }: IntegrationCardProps) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
   const [loading, setLoading] = useState<"connect" | "disconnect" | null>(null);
@@ -122,6 +123,13 @@ export function IntegrationCard({ type, label, description, status }: Integratio
             >
               {loading === "disconnect" ? "…" : "Disconnect"}
             </button>
+          ) : oauth ? (
+            <a
+              href={`/api/integrations/${type.toLowerCase()}/auth`}
+              className="px-3 py-1.5 text-xs font-medium rounded border border-[var(--color-border)] text-[var(--color-text-secondary)] hover:bg-[var(--color-surface-raised)] transition-colors"
+            >
+              Connect with {type === "GMAIL" ? "Google" : "Microsoft"}
+            </a>
           ) : (
             <button
               onClick={() => { setOpen((o) => !o); setError(null); }}
