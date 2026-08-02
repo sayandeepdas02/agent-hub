@@ -5,6 +5,7 @@ import { NextResponse } from "next/server";
 const { auth } = NextAuth(authConfig);
 
 const PUBLIC_PATHS = [
+  "/",
   "/login",
   "/register",
   "/forgot-password",
