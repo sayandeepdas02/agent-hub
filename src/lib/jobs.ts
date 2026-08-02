@@ -4,6 +4,7 @@ import { QUEUES, type QueueName } from "./queue";
 export type JobType =
   | "order_extraction"
   | "integration_dispatch"
+  | "webhook_delivery"
   | "automation_http_post";
 
 interface EnqueueParams {

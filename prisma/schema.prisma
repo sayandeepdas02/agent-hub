@@ -236,8 +236,26 @@ model Webhook {
   secret      String
   createdAt   DateTime @default(now())
 
-  workspace Workspace @relation(fields: [workspaceId], references: [id])
+  workspace  Workspace         @relation(fields: [workspaceId], references: [id])
+  deliveries WebhookDelivery[]
 
+  @@schema("platform")
+}
+
+model WebhookDelivery {
+  id           String   @id @default(cuid())
+  webhookId    String
+  eventType    String
+  payload      Json
+  statusCode   Int?
+  responseBody String?  @db.Text
+  error        String?
+  attempt      Int      @default(1)
+  deliveredAt  DateTime @default(now())
+
+  webhook Webhook @relation(fields: [webhookId], references: [id], onDelete: Cascade)
+
+  @@index([webhookId, deliveredAt(sort: Desc)])
   @@schema("platform")
 }
 

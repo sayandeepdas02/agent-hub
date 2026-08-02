@@ -21,6 +21,7 @@ import {
   Building2,
   PlusCircle,
   ListTodo,
+  Webhook,
 } from "lucide-react";
 import { useState, useRef, useEffect } from "react";
 import { signOut, useSession } from "next-auth/react";
@@ -175,6 +176,7 @@ export function Sidebar({
           <NavItem href="/settings/integrations" icon={Settings} label="Integrations" />
           <NavItem href="/settings/automation" icon={Zap} label="Automation" />
           <NavItem href="/settings/api-keys" icon={Key} label="API Keys" />
+          <NavItem href="/settings/webhooks" icon={Webhook} label="Webhooks" />
           <NavItem href="/settings/jobs" icon={ListTodo} label="Jobs" />
           {(userRole === "ADMIN" || userRole === "MANAGER") && (
             <NavItem href="/settings/members" icon={Users} label="Members" />
