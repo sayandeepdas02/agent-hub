@@ -22,6 +22,7 @@ import {
   PlusCircle,
   ListTodo,
   Webhook,
+  HardDrive,
 } from "lucide-react";
 import { useState, useRef, useEffect } from "react";
 import { signOut, useSession } from "next-auth/react";
@@ -178,6 +179,7 @@ export function Sidebar({
           <NavItem href="/settings/api-keys" icon={Key} label="API Keys" />
           <NavItem href="/settings/webhooks" icon={Webhook} label="Webhooks" />
           <NavItem href="/settings/jobs" icon={ListTodo} label="Jobs" />
+          <NavItem href="/settings/files" icon={HardDrive} label="Files" />
           {(userRole === "ADMIN" || userRole === "MANAGER") && (
             <NavItem href="/settings/members" icon={Users} label="Members" />
           )}
