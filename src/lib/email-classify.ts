@@ -9,7 +9,9 @@ export type EmailClass =
   | "spam"
   | "unknown";
 
-const client = new OpenAI();
+function getClient() {
+  return new OpenAI();
+}
 
 export async function classifyEmail(
   subject: string,
@@ -17,7 +19,7 @@ export async function classifyEmail(
 ): Promise<EmailClass> {
   if (!process.env.OPENAI_API_KEY) return "new_order"; // default in dev
 
-  const completion = await client.chat.completions.create({
+  const completion = await getClient().chat.completions.create({
     model: "gpt-4o-mini",
     max_tokens: 20,
     messages: [
